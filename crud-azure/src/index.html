@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบจัดการข้อมูลนักศึกษา</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Sarabun', sans-serif; background: #f2f5f9; margin: 0; padding: 24px 16px; color: #1f2937; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { margin: 0 0 16px; font-size: 24px; }
+  .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 20px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  input { width: 100%; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+  button { padding: 8px 14px; border: 0; border-radius: 6px; font: inherit; cursor: pointer; }
+  .primary { background: #0078d4; color: #fff; }
+  .gray { background: #e5e7eb; }
+  .edit { background: #fbbf24; }
+  .del { background: #ef4444; color: #fff; }
+  .actions { margin-top: 12px; display: flex; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+  th { background: #f8fafc; }
+  td.btns { white-space: nowrap; }
+  td.btns button { padding: 5px 10px; }
+  #msg { min-height: 22px; margin-top: 8px; color: #b91c1c; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ระบบจัดการข้อมูลนักศึกษา (CRUD)</h1>
+
+  <div class="card">
+    <h3 id="formTitle" style="margin-top:0">เพิ่มนักศึกษา</h3>
+    <input type="hidden" id="id">
+    <div class="row">
+      <input id="name" placeholder="ชื่อ-นามสกุล *">
+      <input id="email" placeholder="อีเมล *">
+      <input id="major" placeholder="สาขา">
+    </div>
+    <div class="actions">
+      <button class="primary" onclick="save()">บันทึก</button>
+      <button class="gray" onclick="resetForm()">ล้างฟอร์ม</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card scroll">
+    <table>
+      <thead><tr><th>ID</th><th>ชื่อ</th><th>อีเมล</th><th>สาขา</th><th></th></tr></thead>
+      <tbody id="list"><tr><td colspan="5">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = '/api/students';
+const $ = id => document.getElementById(id);
+let rows = [];
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showMsg(t) { $('msg').textContent = t || ''; }
+
+// READ
+async function load() {
+  try {
+    const res = await fetch(API);
+    rows = await res.json();
+    if (!res.ok) throw new Error(rows.error);
+    $('list').innerHTML = rows.length ? rows.map(s => `
+      <tr>
+        <td>${s.id}</td><td>${esc(s.name)}</td><td>${esc(s.email)}</td><td>${esc(s.major)}</td>
+        <td class="btns">
+          <button class="edit" onclick="editRow(${s.id})">แก้ไข</button>
+          <button class="del" onclick="removeRow(${s.id})">ลบ</button>
+        </td>
+      </tr>`).join('') : '<tr><td colspan="5">ยังไม่มีข้อมูล</td></tr>';
+  } catch (e) {
+    $('list').innerHTML = `<tr><td colspan="5">โหลดข้อมูลไม่ได้: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+// CREATE + UPDATE
+async function save() {
+  const id = $('id').value;
+  const body = { name: $('name').value.trim(), email: $('email').value.trim(), major: $('major').value.trim() };
+  if (!body.name || !body.email) return showMsg('กรุณากรอกชื่อและอีเมล');
+  const res = await fetch(id ? `${API}/${id}` : API, {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) return showMsg(data.error);
+  resetForm();
+  load();
+}
+
+function editRow(id) {
+  const s = rows.find(r => r.id === id);
+  $('id').value = s.id; $('name').value = s.name; $('email').value = s.email; $('major').value = s.major || '';
+  $('formTitle').textContent = 'แก้ไขข้อมูล ID ' + id;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// DELETE
+async function removeRow(id) {
+  if (!confirm('ต้องการลบข้อมูล ID ' + id + ' ใช่ไหม?')) return;
+  await fetch(`${API}/${id}`, { method: 'DELETE' });
+  load();
+}
+
+function resetForm() {
+  ['id','name','email','major'].forEach(f => $(f).value = '');
+  $('formTitle').textContent = 'เพิ่มนักศึกษา';
+  showMsg('');
+}
+
+load();
+</script>
+</body>
+</html>
